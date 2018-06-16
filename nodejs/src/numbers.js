@@ -34,42 +34,42 @@ function rollingAverage (columns, windowSize) {
 function numbers (client, windowSize, onResult) {
   return client
     .createSession({status: 'open'})
-    .subscribe({streams: ['pow', 'mot', 'met']})
+    .subscribe({streams: ['met']})
     .then(_subs => {
       const subs = Object.assign({}, ..._subs)
-      if (!subs.pow || !subs.mot || !subs.met) throw new Error('failed to subscribe')
+      if (!subs.met) throw new Error('failed to subscribe')
 
       // Create a list of all the column indices relevant to each band
       // (there'll be one per sensor)
-      const bands = {
-        theta: [],
-        alpha: [],
-        betaL: [],
-        betaH: [],
-        gamma: []
-      }
-      for (let i = 0; i < subs.pow.cols.length; i++) {
-        // pow columns look like: IED_AF3/alpha
-        const bandName = subs.pow.cols[i].split('/')[1]
-        bands[bandName].push(i)
-      }
-      const bandNames = Object.keys(bands)
+      // const bands = {
+      //   theta: [],
+      //   alpha: [],
+      //   betaL: [],
+      //   betaH: [],
+      //   gamma: []
+      // }
+      // for (let i = 0; i < subs.pow.cols.length; i++) {
+      //   // pow columns look like: IED_AF3/alpha
+      //   const bandName = subs.pow.cols[i].split('/')[1]
+      //   bands[bandName].push(i)
+      // }
+      // const bandNames = Object.keys(bands)
 
       // Motion data columns look like 'IMD_GYROX', this will make them look like 'gyroX'
-      const makeFriendlyCol = (col) =>
-          col.replace(/^IMD_(.*?)([XYZ]?)$/, (_, name, dim) => name.toLowerCase() + dim)
-
-      const motCols = subs.mot.cols.map(makeFriendlyCol)
+      // const makeFriendlyCol = (col) =>
+      //     col.replace(/^IMD_(.*?)([XYZ]?)$/, (_, name, dim) => name.toLowerCase() + dim)
+      //
+      // const motCols = subs.mot.cols.map(makeFriendlyCol)
 
       // Set up our rolling average functions
       // met always gets a window size of 1 because at the basic subscription
       // level it's averaged over 10s anyway
       const averageMet = rollingAverage(subs.met.cols, 1)
-      const averageMot = rollingAverage(motCols, windowSize)
-      const averageBands = rollingAverage(bandNames, windowSize)
+      //const averageMot = rollingAverage(motCols, windowSize)
+      //const averageBands = rollingAverage(bandNames, windowSize)
 
       const data = {}
-      for (const col of [...motCols, ...subs.met.cols, ...bandNames]) {
+      for (const col of [...subs.met.cols]) {
         data[col] = 0
       }
 
@@ -77,24 +77,24 @@ function numbers (client, windowSize, onResult) {
         maybeUpdate('met', averageMet(ev.met))
       client.on('met', onMet)
 
-      const onMot = (ev) =>
-        maybeUpdate('mot', averageMot(ev.mot))
-      client.on('mot', onMot)
+      // const onMot = (ev) =>
+      //   maybeUpdate('mot', averageMot(ev.mot))
+      // client.on('mot', onMot)
 
       // This averages overall the sensors in the pow stream to give us our
       // "bands" stream
-      const averageSensors = (pow) =>
-        bandNames.map((bandName) => {
-          const sum =
-            bands[bandName]
-              .map(i => pow[i])
-              .reduce((total, row) => total + row, 0)
-          return sum / bands[bandName].length
-        })
+      // const averageSensors = (pow) =>
+      //   bandNames.map((bandName) => {
+      //     const sum =
+      //       bands[bandName]
+      //         .map(i => pow[i])
+      //         .reduce((total, row) => total + row, 0)
+      //     return sum / bands[bandName].length
+      //   })
 
-      const onPow = (ev) =>
-        maybeUpdate('bands', averageBands(averageSensors(ev.pow)))
-      client.on('pow', onPow)
+      // const onPow = (ev) =>
+      //   maybeUpdate('bands', averageBands(averageSensors(ev.pow)))
+      // client.on('pow', onPow)
 
       // Choosing whether to update here is a bit tricky - we want to update
       // at the rate of the fastest stream, but we don't know which one that
@@ -112,12 +112,12 @@ function numbers (client, windowSize, onResult) {
 
       return () =>
         client
-          .unsubscribe({streams: ['pow', 'mot', 'met']})
+          .unsubscribe({streams: ['pow']})
           .updateSession({status: 'close'})
-          .then(() => {
-            client.removeListener('mot', onMot)
-            client.removeListener('pow', onPow)
-          })
+          // .then(() => {
+          //   client.removeListener('mot', onMot)
+          //   client.removeListener('pow', onPow)
+          // })
     })
 }
 
@@ -128,7 +128,7 @@ if (require.main === module) {
   const verbose = process.env.LOG_LEVEL || 1
   const options = {verbose}
   const avgWindow = 10
-
+  const value = []
   const client = new Cortex(options)
 
   client.ready
@@ -140,6 +140,7 @@ if (require.main === module) {
           .join(', ')
 
         console.log(output)
+
       })
     )
 
